@@ -83,7 +83,8 @@ def create_table_users_in_db():
 						pause BOOlEAN NOT NULL DEFAULT FALSE,
 						comment TEXT,
 						alarm BOOlEAN NOT NULL DEFAULT FALSE,
-						alarm_detail TEXT,
+						alarm_detail TEXT CHECK
+							(alarm AND alarm_detail IS NOT NULL OR alarm_detail IS NULL),
 						penalty INTEGER
 					)
 				"""
@@ -95,9 +96,6 @@ def create_table_users_in_db():
 					AFTER INSERT ON users
 					FOR EACH ROW
 					BEGIN
-						SELECT RAISE (ABORT, "If alarm TRUE, then alarm_detail can't be NULL.")
-						WHERE NEW.alarm = 1 and NEW.alarm_detail is NULL;
-
 						UPDATE users
 						SET age = calculate_age(NEW.birthday), currency = calculate_currency(NEW.course),
 							price = calcute_priclae(NEW.course, NEW.discount, NEW.habitation)
@@ -161,12 +159,35 @@ def get_balance(child_id: int) -> int:
 		return balance
 
 
-def get_list_with_tuples_with_names_and_balances(parent_id: int) -> list:
-	"""Возвращает список кортежей с именами детей родителя и их балансами"""
+def get_list_with_dicts_with_names_and_balances(parent_id: int) -> list:
+	"""Возвращает список cо словарями имён детей родителя и их балансами"""
 	with SqlConnection() as conn:
 		cursor = conn.cursor()
 
-		names_and_balances = cursor.execute(
+		data_query = cursor.execute(
 			f"SELECT name, balance FROM users WHERE parent_id = {parent_id}").fetchall()
 
+		names_and_balances = list(map(
+			lambda data: {'name': data[0], 'balance': data[1]}, data_query))
+
 		return names_and_balances
+
+
+def get_info_user(id_: int) -> dict:
+	"""Возвращает словарь с информацией о ребёнке"""
+	with SqlConnection() as conn:
+		cursor = conn.cursor()
+
+		data_query = cursor.execute(
+			f"""
+				SELECT name, id, age, course, date_enrollment, habitation,
+					balance, comment, alarm_detail, parent_id
+				WHERE id = {id_}
+			"""
+		).fetchone()
+
+		columns = [column[0] for column in cursor.description]
+
+		info = dict(zip(columns, data_query))
+		
+		return info

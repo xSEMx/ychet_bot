@@ -3,13 +3,11 @@ from dotenv import load_dotenv
 
 from aiogram import Bot, Router, types, F
 from aiogram.filters import Command 
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.types.input_file import InputFile
 
 from generation_qr_code import generate_qr_code_and_get_path
 from db import save_telegram_user_id_and_get_name, get_type_telegram_user,
-			   get_balance, get_list_with_tuples_with_names_and_balances
+			   get_balance, get_list_with_dicts_with_names_and_balances
 
 load_dotenv('.env')
 
@@ -39,16 +37,17 @@ async def save_tg_parent_id_to_db_and_send_message_about_it(message: types.Messa
 		# или не ввёл <id>
 		if isinstance(_ex, IndexError):
 			await bot.send_message(message.chat.id,
-				"""Используйте /link_parent так:\n/link_parent <id>\n
-				Повторите попытку""")
+				"""<p>Используйте /link_parent так:</p>
+				   <p>/link_parent |id|</p>
+				   <p>Повторите попытку</p>""", parse_mode='HTML')
 
 		# отвечаем, если пользователь ввёл некорректный,
 		# несуществующий или чужой <id>
 		elif isinstance(_ex, ValueError) or isinstance(_ex, TypeError):
 			await bot.send_message(message.chat.id,
-				"""Вы ввели некорректный или несуществующий <id>\n
-				<id> может состоять только из цифр\n
-				Повторите попытку""")
+				"""<p>Вы ввели некорректный или несуществующий |id|</p>
+				   <p>|id| может состоять только из цифр</p>
+				   <p>Повторите попытку</p>""", parse_mode='HTML')
 	else:
 		await bot.send_message(message.chat.id, f'Вы записаны родителем ребёнка: {name}')
 
@@ -68,16 +67,17 @@ async def save_tg_child_id_to_db_and_send_message_about_it(message: types.Messag
 		# или не ввёл <id>
 		if isinstance(_ex, IndexError):
 			await bot.send_message(message.chat.id,
-				"""Используйте /link_child так:\n/link_child <id>\n
-				Повторите попытку""")
+				"""<p>Используйте /link_child так:</p>
+				   <p>/link_child |id|</p>
+				   <p>Повторите попытку</p>""", parse_mode='HTML')
 
 		# отвечаем, если пользователь ввёл некорректный,
 		# несуществующий или чужой <id>
 		elif isinstance(_ex, ValueError) or isinstance(_ex, TypeError):
 			await bot.send_message(message.chat.id,
-				"""Вы ввели некорректный или несуществующий <id>\n
-				<id> может состоять только из цифр\n
-				Повторите попытку""")
+				"""<p>Вы ввели некорректный или несуществующий |id|</p>
+				   <p>|id| может состоять только из цифр</p>
+				   <p>Повторите попытку</p>""", parse_mode='HTML')
 	else:
 		await bot.send_message(message.chat.id, f'{name}, вы записаны нашим учеником')
 
@@ -91,15 +91,15 @@ async def send_message_with_qr_code_and_balance(message: types.Message):
 
 	if type_user is None:
 		await bot.send_message(message.chat.id,
-			"""Вы ещё не записаны родителем или ребёнком
-			в нашей школе\nДля того, чтобы это сделать,
-			воспользуйтесь одной из команд:\n
-			/link_parent\n/link_child""")
+			"""<p>Вы ещё не записаны родителем или ребёнком в нашей школе</p>
+			   <p>Для того, чтобы это сделать, воспользуйтесь одной из команд:</p>
+			   <p>/link_parent</p>
+			   <p>/link_child</p>""", parse_mode='HTML')
 
 	elif type_user == 'parent':
-		names_and_balances = get_list_with_tuples_with_names_and_balances(message.chat.id)
+		names_and_balances = get_list_with_dicts_with_names_and_balances(message.chat.id)
 
-		message_lines = list(map(lambda x: f'{x[0]}: {x[1]}', names_and_balances))
+		message_lines = list(map(lambda x: f'{x['name']}: {x['balance']}', names_and_balances))
 
 		message = '\n'.join(message_lines)
 
