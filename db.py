@@ -107,40 +107,22 @@ def create_table_users_in_db():
 			)
 
 
-def save_parent_id_and_get_name(id_: int, parent_id: int) -> str:
-	"""Сохраняет parent_id родителя в базу и возвращает имя ребёнка,
-	   parent_id родителя которого сохранили"""
+def save_telegram_user_id_and_get_name(id_: int, telegram_id: int, type_user: str) -> str:
+	"""Сохраняет telegram_id пользователя в базе и возвращает имя этого пользователя"""
 	with SqlConnection() as conn:
 		cursor = conn.cursor()
+		
+		if type_user == 'parent':
+			field = 'parent_id'
+		elif type_user == 'child':
+			filed = 'child_id'
 
-		# проверяем не ввёл ли пользователь <id> чужого ребёнка,
-		# у которого уже есть parent_id, иначе вызываем исключение
-		parent_id = cursor.execute(f"SELECT parent_id FROM users WHERE id = {id_}").fetchone()[0]
+		telegram_field = cursor.execute(f"SELECT {field} FROM users WHERE id = {id_}").fetchone()[0]
 
-		if parent_id is not None:
+		if telegram_field is not None:
 			raise ValueError
 
-		cursor.execute(f"UPDATE users SET parent_id = {parent_id} WHERE id = {id_}")
-
-		name = cursor.execute(f"SELECT name FROM users WHERE id = {id_}").fetchone()[0]
-
-		return name
-
-
-def save_child_id_and_get_name(id_: int, child_id: int) -> str:
-	"""Сохраняет child_id в базу и возвращает имя ребёнка,
-	   child_id которого сохранили"""
-	with SqlConnection() as conn:
-		cursor = conn.cursor()
-
-		# проверяем не ввёл ли пользователь <id> чужого ребёнка,
-		# у которого уже есть child_id, иначе вызываем исключение
-		child_id = cursor.execute(f"SELECT child_id FROM users WHERE id = {id_}").fetchone()[0]
-
-		if child_id is not None:
-			raise ValueError
-
-		cursor.execute(f"UPDATE users SET child_id = {child_id} WHERE id = {id_}")
+		cursor.execute(f"UPDATE users SET {field} = {telegram_id} WHERE id = {id_}")
 
 		name = cursor.execute(f"SELECT name FROM users WHERE id = {id_}").fetchone()[0]
 

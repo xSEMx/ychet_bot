@@ -35,7 +35,7 @@ inline_but_list.append(inline_but)
 inline_keyboard = InlineKeyboardMarkup(inline_keyboard=[inline_but_list])
 
 
-@router.message(Command(commands=['start']))
+@router.message(Command(commands=['start', 'help']))
 async def send_welcome(message: types.Message):
 	await bot.send_message(message.chat.id, 'Hi', reply_markup=inline_keyboard)
 
