@@ -186,8 +186,44 @@ def get_info_user(id_: int) -> dict:
 			"""
 		).fetchone()
 
-		columns = [column[0] for column in cursor.description]
+		columns = [column[0] for column in cursor.description()]
 
 		info = dict(zip(columns, data_query))
 		
 		return info
+
+
+def boost_and_get_balance(id_: int) -> int:
+	"""Добавляет к балансу ученика 28 дней и возвращает его"""
+	with SqlConnection() as conn:
+	cursor = conn.cursor()
+
+	cursor.execute(f"UPDATE users SET balance = balance + 28 WHERE id = {id_}")		
+
+	new_balance = cursor.execute(f"SELECT balance FROM users WHERE id = {id_}").fetchone()[0]
+
+	return new_balance
+
+
+def stop_account_and_get_name(id_: int) -> str:
+	"""Устанавливает pause=True в базе и возвращает имя ученика"""
+	with SqlConnection() as conn:
+		cursor = conn.cursor()
+
+	 	cursor.execute(f"UPDATE users SET pause = 1 WHERE id = {id_}")
+
+	 	name = cursor.execute(f"SELECT name WHERE id = {id_}").fetchone()[0]
+
+	 	return name
+
+
+def delete_user_and_get_name(id_: int) -> str:
+	"""Удаляет ученика из базы и возвращает его имя"""
+	with SqlConnection() as conn:
+		cursor = conn.cursor()
+
+		name = cursor.execute(f"SELECT name FROM users WHERE id = {id_}").fetchone()[0]
+
+		cursor.execute(f"DELETE FROM users WHERE id = {id_}")
+
+		return name
