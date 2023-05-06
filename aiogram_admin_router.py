@@ -1,13 +1,15 @@
 import os
 from dotenv import load_dotenv
 
-from aiogram import Bot, Router, types
+from aiogram import Bot, Router, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters.callback_data import CallbackData
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext 
 
-from db import get_info_user, boost_and_get_balance, stop_account_and_get_name,
-			   delete_user_and_get_name,
+from db import (get_info_user, boost_and_get_balance, stop_account_and_get_name,
+			    delete_user_and_get_name, alarm_exists, save_alarm_detail)
 
 load_dotenv('.env')
 
@@ -18,11 +20,23 @@ bot = Bot(token=TG_API)
 admin_router = Router()
 
 class MyCallback(CallbackData, prefix='my_callback'):
-	id: int,
+	id: int
 	foo: str
 
 
-@admin_router.message(Command('profile'))
+class Dialog(StatesGroup):
+	default = State()
+	alarm_detail = State()
+
+
+@admin_router.message(Command('start'))
+async def send_welcome_message(message: types.Message, state: FSMContext):
+	await state.set_state(Dialog.default)
+
+	await bot.send_message(message.chat.id, 'Здравствуйте, я бот')
+
+
+@admin_router.message(Dialog.default, Command('profile'))
 async def send_info_user_message(message: types.Message):
 	"""Отправляет сообщение в чат с информацией о пользователе
 	   и клавиатуру для взаимодействия с базой"""
@@ -88,7 +102,7 @@ async def send_info_user_message(message: types.Message):
 			""", parse_mode='HTML', reply_markup=inline_builder.as_markup())
 
 
-@admin_router.callback_query(MyCallback.filter(F.foo == 'inline_button_balance'))
+@admin_router.callback_query(Dialog.default, MyCallback.filter(F.foo == 'inline_button_balance'))
 async def boost_user_balance(query: types.CallbackQuery, callback_data: MyCallback):
 	"""Добавляет к балансу ученика 28 дней"""
 	id_from_db = callback_data.id
@@ -98,7 +112,7 @@ async def boost_user_balance(query: types.CallbackQuery, callback_data: MyCallba
 	await bot.send_message(query.from_user.id, f'Новый баланс: {new_balance}')
 
 
-@admin_router.callback_query(MyCallback.filter(F.foo == 'inline_button_pause'))
+@admin_router.callback_query(Dialog.default, MyCallback.filter(F.foo == 'inline_button_pause'))
 async def stop_account_user(query: types.CallbackQuery, callback_data: MyCallback):
 	"""Приостанавливает счетчик ученика"""
 	id_from_db = callback_data.id
@@ -108,7 +122,7 @@ async def stop_account_user(query: types.CallbackQuery, callback_data: MyCallbac
 	await bot.send_message(query.from_user.id, f'Счётчик {name} приостановлен')
 
 
-@admin_router.callback_query(MyCallback.filter(F.foo == 'inline_button_delete'))
+@admin_router.callback_query(Dialog.default, MyCallback.filter(F.foo == 'inline_button_delete'))
 async def request_validate_delete_user(query: types.CallbackQuery, callback_data: MyCallback):
 	"""Запрашивает подтверждение на удаление ученика из базы"""
 	id_from_db = callback_data.id
@@ -124,8 +138,9 @@ async def request_validate_delete_user(query: types.CallbackQuery, callback_data
 		reply_markup=inline_builder.as_markup())
 
 
-@admin_router.callback_query(MyCallback.filter(F.foo == 'inline_button_delete_validate'))
+@admin_router.callback_query(Dialog.default, MyCallback.filter(F.foo == 'inline_button_delete_validate'))
 async def delete_user(query: types.CallbackQuery, callback_data: MyCallback):
+	"""Удаляет пользователя из базы"""
 	id_from_db = callback_data.id
 
 	name = delete_user_and_get_name(id_from_db)
@@ -133,6 +148,55 @@ async def delete_user(query: types.CallbackQuery, callback_data: MyCallback):
 	await bot.send_message(query.from_user.id, f'Ученик {name} удалён')
 
 
-@admin_router.callback_query(MyCallback.filter(F.foo == 'inline_button_delete_cancel'))
-async def delete_user(query: types.CallbackQuery, callback_data: MyCallback):
+@admin_router.callback_query(Dialog.default, MyCallback.filter(F.foo == 'inline_button_delete_cancel'))
+async def delete_user_cancel(query: types.CallbackQuery, callback_data: MyCallback):
+	"""Отменяет удаление пользователя из базы"""
 	await bot.send_message(query.from_user.id, f'Удаление отменено')
+
+
+@admin_router.callback_query(Dialog.default, MyCallback.filter(F.foo == 'inline_button_alarm'))
+async def request_do_alarm_detail(query: types.CallbackQuery, callback_data: MyCallback):
+	"""Запрашивает у пользователя действие
+	   к комментарию к проблеме"""
+	id_from_db = callback_data.id
+
+	inline_builder = InlineKeyboardBuilder()
+
+	inline_builder.button(text='Написать комментарий к проблеме', callback_data=MyCallback(
+		id=id_from_db, foo='inline_button_alarm_new'))
+
+	if alarm_exists(id_from_db):
+		inline_builder.button(text='Дополнить комментарий к проблеме', callback_data=MyCallback(
+			id=id_from_db, foo='inline_button_alarm_update'))
+
+	await bot.send_message(query.from_user.id, 'Выберите действие', reply_markup=inline_builder.as_markup())
+
+
+@admin_router.message(Dialog.default, MyCallback.filter(
+	F.foo in ['inline_button_alarm_new', 'inline_button_alarm_update']))
+async def request_alarm_detail(query: types.CallbackQuery, callback_data: MyCallback, state: FSMContext):
+	"""Запрашивает комментарий к проблеме"""
+	await state.set_state(Dialog.alarm_detail)
+	await state.update_data(id_from_db=callback_data.id,
+		alarm_detail='new' if callback_data.foo == 'inline_button_alarm_new' else 'update')
+
+	await bot.send_message(query.from_user.id, 'Напишите комментарий')
+
+
+@admin_router.message(Dialog.alarm_detail)
+async def save_alarm_detail(message: types.Message, state: FSMContext):
+	"""Сохраняет комментарий к проблеме"""
+	alarm_detail = message.text
+
+	state_data = await state.get_data()
+
+	id_from_db = state_data.get('id_from_db')
+
+	if state_data.get('alarm_detail') == 'new':
+		save_alarm_detail(id_from_db, alarm_detail)
+	else:
+		save_alarm_detail(id_from_db, alarm_detail, update=True)
+
+	await state.clear()
+
+	await bot.send_message(message.chat.id, 'Комментарий сохранён')

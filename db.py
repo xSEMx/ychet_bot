@@ -70,13 +70,13 @@ def create_table_users_in_db():
 						id INTEGER PRIMARY KEY AUTOINCREMENT,
 						name TEXT NOT NULL,
 						birthday DATE NOT NULL CHECK (birthday < CURRENT_TIMESTAMP),
-						age INTEGER NOT NULL DEFAULT 0, # DEFAULT 0 так как дальше используем TRIGGER
+						age INTEGER NOT NULL DEFAULT 0, /* DEFAULT 0 так как дальше используем TRIGGER */
 						date_enrollment DATE NOT NULL,
 						course INTEGER NOT NULL CHECK (course BETWEEN 0 and 9),
 						habitation BOOlEAN NOT NULL,
 						discount INTEGER NOT NULL DEFAULT 0 CHECK (discount BETWEEN 0 and 100),
-						currency TEXT NOT NULL DEFAULT '', # DEFAULT '' так как дальше используем TRIGGER
-						price INTEGER NOT NULL DEFAULT 0, # DEFAULT 0 так как дальше используем TRIGGER
+						currency TEXT NOT NULL DEFAULT '', /* DEFAULT '' так как дальше используем TRIGGER */
+						price INTEGER NOT NULL DEFAULT 0, /* DEFAULT 0 так как дальше используем TRIGGER */
 						balance INTEGER DEFAULT 0,
 						parent_id INTEGER,
 						child_id INTEGER UNIQUE,
@@ -84,7 +84,7 @@ def create_table_users_in_db():
 						comment TEXT,
 						alarm BOOlEAN NOT NULL DEFAULT FALSE,
 						alarm_detail TEXT CHECK
-							(alarm AND alarm_detail IS NOT NULL OR alarm_detail IS NULL),
+							(alarm AND alarm_detail IS NOT NULL OR NOT alarm AND alarm_detail IS NULL),
 						penalty INTEGER
 					)
 				"""
@@ -98,7 +98,7 @@ def create_table_users_in_db():
 					BEGIN
 						UPDATE users
 						SET age = calculate_age(NEW.birthday), currency = calculate_currency(NEW.course),
-							price = calcute_priclae(NEW.course, NEW.discount, NEW.habitation)
+							price = calculate_price(NEW.course, NEW.discount, NEW.habitation)
 						WHERE id = NEW.id;
 					END;
 				"""
@@ -196,13 +196,13 @@ def get_info_user(id_: int) -> dict:
 def boost_and_get_balance(id_: int) -> int:
 	"""Добавляет к балансу ученика 28 дней и возвращает его"""
 	with SqlConnection() as conn:
-	cursor = conn.cursor()
+		cursor = conn.cursor()
 
-	cursor.execute(f"UPDATE users SET balance = balance + 28 WHERE id = {id_}")		
+		cursor.execute(f"UPDATE users SET balance = balance + 28 WHERE id = {id_}")		
 
-	new_balance = cursor.execute(f"SELECT balance FROM users WHERE id = {id_}").fetchone()[0]
+		new_balance = cursor.execute(f"SELECT balance FROM users WHERE id = {id_}").fetchone()[0]
 
-	return new_balance
+		return new_balance
 
 
 def stop_account_and_get_name(id_: int) -> str:
@@ -210,11 +210,11 @@ def stop_account_and_get_name(id_: int) -> str:
 	with SqlConnection() as conn:
 		cursor = conn.cursor()
 
-	 	cursor.execute(f"UPDATE users SET pause = 1 WHERE id = {id_}")
+		cursor.execute(f"UPDATE users SET pause = 1 WHERE id = {id_}")
 
-	 	name = cursor.execute(f"SELECT name WHERE id = {id_}").fetchone()[0]
+		name = cursor.execute(f"SELECT name WHERE id = {id_}").fetchone()[0]
 
-	 	return name
+		return name
 
 
 def delete_user_and_get_name(id_: int) -> str:
@@ -227,3 +227,57 @@ def delete_user_and_get_name(id_: int) -> str:
 		cursor.execute(f"DELETE FROM users WHERE id = {id_}")
 
 		return name
+
+
+def alarm_exists(id_: int) -> bool:
+	"""Проверяет установлено ли у пользователя alarm=True"""
+	with SqlConnection() as conn:
+		cursor = conn.cursor()
+
+		query = cursor.execute(f"SELECT EXISTS(SELECT id FROM users WHERE alarm = True and id = {id_})")
+
+		if query.fetchone()[0]:
+			return True
+		else:
+			return False
+
+
+def save_alarm_detail(id_: int, alarm_detail: str, update=None) -> None:
+	"""Сохраняет комментарий к проблеме"""
+	with SqlConnection() as conn:
+		cursor = conn.cursor()
+
+		if update is not None:
+			alarm_detail_old = cursor.execute(
+				f"SELECT alarm_detail FROM users WHERE id = {id_}").fetchone()[0]
+
+			alarm_detail = alarm_detail_old + alarm_detail
+
+			query = f"UPDATE users SET alarm_detail = {alarm_detail} WHERE id = {id_}"
+
+		else:
+			query = f"UPDATE users SET alarm = True and alarm_detail = {alarm_detail} WHERE id = {id_}"
+
+		cursor.execute(query)
+
+
+with SqlConnection() as conn:
+	cursor = conn.cursor()
+	conn.create_function('calculate_age', 1, __calculate_age)
+	conn.create_function('calculate_currency', 1, __calculate_currency)
+	conn.create_function('calculate_price', 3, __calculate_price)
+
+	for i in range(6):
+		name = input()
+		birthday = datetime.date(int(input()), int(input()), int(input()))
+		date_enrollment = datetime.date(int(input()), int(input()), int(input()))
+		course = int(input())
+		habitation = False
+
+		cursor.execute(
+			"""INSERT INTO users (name, birthday, date_enrollment, course, habitation)
+			    VALUES (?, ?, ?, ?, ?)
+			""", (name, birthday, date_enrollment, cursor, habitation)
+		)
+
+		print('[+]')

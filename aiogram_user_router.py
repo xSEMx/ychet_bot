@@ -6,8 +6,8 @@ from aiogram.filters import Command
 from aiogram.types.input_file import InputFile
 
 from generation_qr_code import generate_qr_code_and_get_path
-from db import save_telegram_user_id_and_get_name, get_type_telegram_user,
-			   get_balance, get_list_with_dicts_with_names_and_balances
+from db import (save_telegram_user_id_and_get_name, get_type_telegram_user,
+			    get_balance, get_list_with_dicts_with_names_and_balances)
 
 load_dotenv('.env')
 
@@ -99,7 +99,7 @@ async def send_message_with_qr_code_and_balance(message: types.Message):
 	elif type_user == 'parent':
 		names_and_balances = get_list_with_dicts_with_names_and_balances(message.chat.id)
 
-		message_lines = list(map(lambda x: f'{x['name']}: {x['balance']}', names_and_balances))
+		message_lines = list(map(lambda x: '{}: {}'.format(x['name'], x['balance']), names_and_balances))
 
 		message = '\n'.join(message_lines)
 

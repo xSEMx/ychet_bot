@@ -6,6 +6,7 @@ import asyncio
 from aiogram import Bot, Dispatcher
 
 from aiogram_user_router import user_router
+from aiogram_admin_router import admin_router
 
 load_dotenv('.env')
 
@@ -17,7 +18,7 @@ async def bot_config():
 	bot = Bot(token=TG_API)
 
 	dp = Dispatcher()
-	dp.include_routers(user_router)
+	dp.include_routers(admin_router)
 
 	await dp.start_polling(bot)
 
